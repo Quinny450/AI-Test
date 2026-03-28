@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="game-card" aria-label="Snake">
+      <header class="game-header">
+        <div class="score-block">
+          <span class="score-label">Score</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="header-actions">
+          <button id="pause-button" class="icon-button" type="button" aria-label="Pause or resume">
+            II
+          </button>
+          <button id="restart-button" class="icon-button" type="button" aria-label="Restart">
+            R
+          </button>
+        </div>
+      </header>
+
+      <div class="board-frame">
+        <div
+          id="board"
+          class="board"
+          role="grid"
+          aria-label="Snake game board"
+        ></div>
+
+        <div id="overlay" class="overlay">
+          <div class="overlay-panel">
+            <p id="overlay-kicker" class="overlay-kicker">Arcade Mode</p>
+            <h1 id="overlay-title">Play Snake</h1>
+            <p id="overlay-message" class="overlay-message">
+              Use the arrow keys, WASD, or swipe to start.
+            </p>
+            <button id="overlay-button" class="primary-button" type="button">
+              Play
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite">
+        Use the arrow keys, WASD, or swipe to move.
+      </p>
+    </section>
+  </main>
+
+  <script type="module" src="./snake-game.js"></script>
+</body>
+</html>
