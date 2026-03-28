@@ -6,6 +6,7 @@ export const DIRECTIONS = Object.freeze({
 });
 
 const INITIAL_DIRECTION = DIRECTIONS.RIGHT;
+const MAX_DIRECTION_BUFFER = 3;
 
 const VECTORS = Object.freeze({
   [DIRECTIONS.UP]: { x: 0, y: -1 },
@@ -82,6 +83,7 @@ export function createInitialState({
     snake,
     direction: INITIAL_DIRECTION,
     nextDirection: INITIAL_DIRECTION,
+    queuedDirections: [],
     food: placeFood({ columns, rows, snake, random }),
     score: 0,
     hasStarted: false,
@@ -100,11 +102,11 @@ export function setDirection(state, nextDirection) {
     return state;
   }
 
-  if (OPPOSITES[state.direction] === nextDirection) {
-    return state;
-  }
+  const queuedDirections = state.queuedDirections ?? [];
+  const lastQueuedDirection = queuedDirections[queuedDirections.length - 1];
+  const referenceDirection = lastQueuedDirection ?? state.direction;
 
-  if (state.nextDirection === nextDirection) {
+  if (referenceDirection === nextDirection) {
     if (!state.hasStarted) {
       return {
         ...state,
@@ -115,10 +117,21 @@ export function setDirection(state, nextDirection) {
     return state;
   }
 
+  if (OPPOSITES[referenceDirection] === nextDirection) {
+    return state;
+  }
+
+  if (queuedDirections.length >= MAX_DIRECTION_BUFFER) {
+    return state;
+  }
+
+  const nextQueuedDirections = [...queuedDirections, nextDirection];
+
   return {
     ...state,
     hasStarted: true,
-    nextDirection,
+    nextDirection: nextQueuedDirections[0],
+    queuedDirections: nextQueuedDirections,
   };
 }
 
@@ -152,7 +165,9 @@ export function stepGame(state, random = Math.random) {
     return state;
   }
 
-  const movement = VECTORS[state.nextDirection];
+  const queuedDirections = state.queuedDirections ?? [];
+  const activeDirection = queuedDirections[0] ?? state.direction;
+  const movement = VECTORS[activeDirection];
   const nextHead = {
     x: state.snake[0].x + movement.x,
     y: state.snake[0].y + movement.y,
@@ -167,7 +182,9 @@ export function stepGame(state, random = Math.random) {
   if (hitWall || hitSelf) {
     return {
       ...state,
-      direction: state.nextDirection,
+      direction: activeDirection,
+      nextDirection: activeDirection,
+      queuedDirections: [],
       isGameOver: true,
       isPaused: false,
     };
@@ -186,11 +203,14 @@ export function stepGame(state, random = Math.random) {
       })
     : state.food;
 
+  const remainingQueuedDirections = queuedDirections.slice(1);
+
   return {
     ...state,
     snake: nextSnake,
-    direction: state.nextDirection,
-    nextDirection: state.nextDirection,
+    direction: activeDirection,
+    nextDirection: remainingQueuedDirections[0] ?? activeDirection,
+    queuedDirections: remainingQueuedDirections,
     food: nextFood,
     score: willEat ? state.score + 1 : state.score,
     isGameOver: willEat && nextFood === null,
