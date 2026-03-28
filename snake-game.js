@@ -9,8 +9,10 @@ import {
 const BOARD_COLUMNS = 17;
 const BOARD_ROWS = 15;
 const TICK_MS = 140;
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 const boardElement = document.querySelector("#board");
+const sceneElement = document.querySelector("#scene");
 const scoreElement = document.querySelector("#score");
 const statusElement = document.querySelector("#status");
 const pauseButton = document.querySelector("#pause-button");
@@ -28,19 +30,214 @@ let state = createInitialState({
 
 const cells = [];
 let touchStartPoint = null;
+let transition = null;
 
-function getCellIndex(point) {
-  return point.y * state.columns + point.x;
+const snakeOutlineElement = document.createElementNS(SVG_NS, "path");
+const snakeBodyElement = document.createElementNS(SVG_NS, "path");
+const snakeHeadElement = document.createElementNS(SVG_NS, "circle");
+const snakeEyeLeftElement = document.createElementNS(SVG_NS, "circle");
+const snakeEyeRightElement = document.createElementNS(SVG_NS, "circle");
+const foodBodyElement = document.createElementNS(SVG_NS, "circle");
+const foodHighlightElement = document.createElementNS(SVG_NS, "circle");
+const foodStemElement = document.createElementNS(SVG_NS, "ellipse");
+
+snakeOutlineElement.setAttribute("class", "snake-outline");
+snakeOutlineElement.setAttribute("stroke-width", "0.92");
+snakeBodyElement.setAttribute("class", "snake-body");
+snakeBodyElement.setAttribute("stroke-width", "0.76");
+snakeHeadElement.setAttribute("class", "snake-head");
+snakeHeadElement.setAttribute("r", "0.42");
+snakeEyeLeftElement.setAttribute("class", "snake-eye");
+snakeEyeLeftElement.setAttribute("r", "0.055");
+snakeEyeRightElement.setAttribute("class", "snake-eye");
+snakeEyeRightElement.setAttribute("r", "0.055");
+foodBodyElement.setAttribute("class", "food-body");
+foodBodyElement.setAttribute("r", "0.3");
+foodHighlightElement.setAttribute("class", "food-highlight");
+foodHighlightElement.setAttribute("r", "0.09");
+foodStemElement.setAttribute("class", "food-stem");
+foodStemElement.setAttribute("rx", "0.1");
+foodStemElement.setAttribute("ry", "0.05");
+
+sceneElement.append(
+  foodStemElement,
+  foodBodyElement,
+  foodHighlightElement,
+  snakeOutlineElement,
+  snakeBodyElement,
+  snakeHeadElement,
+  snakeEyeLeftElement,
+  snakeEyeRightElement,
+);
+
+function clonePoint(point) {
+  return { x: point.x, y: point.y };
 }
 
-function getDirectionClass(direction) {
-  return `dir-${direction.toLowerCase()}`;
+function cloneSnake(snake) {
+  return snake.map((segment) => clonePoint(segment));
+}
+
+function pointsEqual(firstPoint, secondPoint) {
+  if (firstPoint === null || secondPoint === null) {
+    return firstPoint === secondPoint;
+  }
+
+  return firstPoint.x === secondPoint.x && firstPoint.y === secondPoint.y;
+}
+
+function interpolatePoint(fromPoint, toPoint, progress) {
+  return {
+    x: fromPoint.x + (toPoint.x - fromPoint.x) * progress,
+    y: fromPoint.y + (toPoint.y - fromPoint.y) * progress,
+  };
+}
+
+function formatUnit(value) {
+  return value.toFixed(3);
+}
+
+function getPointCenter(point) {
+  return {
+    x: point.x + 0.5,
+    y: point.y + 0.5,
+  };
+}
+
+function buildSnakePath(points) {
+  if (points.length === 0) {
+    return "";
+  }
+
+  const firstPoint = getPointCenter(points[0]);
+  let path = `M ${formatUnit(firstPoint.x)} ${formatUnit(firstPoint.y)}`;
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = getPointCenter(points[index]);
+    path += ` L ${formatUnit(point.x)} ${formatUnit(point.y)}`;
+  }
+
+  return path;
+}
+
+function getRenderedSnake(now) {
+  if (transition === null) {
+    return {
+      direction: state.direction,
+      points: state.snake,
+    };
+  }
+
+  const progress = Math.min((now - transition.startedAt) / transition.duration, 1);
+  const points = transition.toSnake.map((toPoint, index) => {
+    const fallbackPoint = transition.fromSnake[transition.fromSnake.length - 1];
+    const fromPoint = transition.fromSnake[index] ?? fallbackPoint;
+    return interpolatePoint(fromPoint, toPoint, progress);
+  });
+
+  if (progress >= 1) {
+    transition = null;
+  }
+
+  return {
+    direction: transition?.toDirection ?? state.direction,
+    points,
+  };
+}
+
+function getRenderedFood(now) {
+  if (transition === null) {
+    return state.food;
+  }
+
+  const progress = Math.min((now - transition.startedAt) / transition.duration, 1);
+  if (transition.fromFood && transition.toFood && !pointsEqual(transition.fromFood, transition.toFood)) {
+    return progress < 0.4 ? transition.fromFood : transition.toFood;
+  }
+
+  return transition.toFood ?? transition.fromFood;
+}
+
+function setFoodVisibility(isVisible) {
+  const visibility = isVisible ? "visible" : "hidden";
+  foodBodyElement.setAttribute("visibility", visibility);
+  foodHighlightElement.setAttribute("visibility", visibility);
+  foodStemElement.setAttribute("visibility", visibility);
+}
+
+function setEyePositions(headCenter, direction) {
+  const offsets = {
+    UP: [
+      { x: -0.12, y: -0.14 },
+      { x: 0.12, y: -0.14 },
+    ],
+    DOWN: [
+      { x: -0.12, y: 0.14 },
+      { x: 0.12, y: 0.14 },
+    ],
+    LEFT: [
+      { x: -0.14, y: -0.12 },
+      { x: -0.14, y: 0.12 },
+    ],
+    RIGHT: [
+      { x: 0.14, y: -0.12 },
+      { x: 0.14, y: 0.12 },
+    ],
+  };
+
+  const eyeOffsets = offsets[direction] ?? offsets.RIGHT;
+  const leftEye = {
+    x: headCenter.x + eyeOffsets[0].x,
+    y: headCenter.y + eyeOffsets[0].y,
+  };
+  const rightEye = {
+    x: headCenter.x + eyeOffsets[1].x,
+    y: headCenter.y + eyeOffsets[1].y,
+  };
+
+  snakeEyeLeftElement.setAttribute("cx", formatUnit(leftEye.x));
+  snakeEyeLeftElement.setAttribute("cy", formatUnit(leftEye.y));
+  snakeEyeRightElement.setAttribute("cx", formatUnit(rightEye.x));
+  snakeEyeRightElement.setAttribute("cy", formatUnit(rightEye.y));
+}
+
+function renderScene(now = performance.now()) {
+  const renderedSnake = getRenderedSnake(now);
+  const snakePath = buildSnakePath(renderedSnake.points);
+  snakeOutlineElement.setAttribute("d", snakePath);
+  snakeBodyElement.setAttribute("d", snakePath);
+
+  const headCenter = getPointCenter(renderedSnake.points[0]);
+  snakeHeadElement.setAttribute("cx", formatUnit(headCenter.x));
+  snakeHeadElement.setAttribute("cy", formatUnit(headCenter.y));
+  setEyePositions(headCenter, renderedSnake.direction);
+
+  const renderedFood = getRenderedFood(now);
+  if (renderedFood === null) {
+    setFoodVisibility(false);
+  } else {
+    setFoodVisibility(true);
+    const foodCenter = getPointCenter(renderedFood);
+    foodBodyElement.setAttribute("cx", formatUnit(foodCenter.x));
+    foodBodyElement.setAttribute("cy", formatUnit(foodCenter.y));
+    foodHighlightElement.setAttribute("cx", formatUnit(foodCenter.x - 0.1));
+    foodHighlightElement.setAttribute("cy", formatUnit(foodCenter.y - 0.1));
+    foodStemElement.setAttribute("cx", formatUnit(foodCenter.x + 0.06));
+    foodStemElement.setAttribute("cy", formatUnit(foodCenter.y - 0.23));
+    foodStemElement.setAttribute(
+      "transform",
+      `rotate(-24 ${formatUnit(foodCenter.x + 0.06)} ${formatUnit(foodCenter.y - 0.23)})`,
+    );
+  }
+
+  window.requestAnimationFrame(renderScene);
 }
 
 function buildBoard() {
   boardElement.innerHTML = "";
   boardElement.style.gridTemplateColumns = `repeat(${state.columns}, minmax(0, 1fr))`;
   boardElement.style.aspectRatio = `${state.columns} / ${state.rows}`;
+  sceneElement.setAttribute("viewBox", `0 0 ${state.columns} ${state.rows}`);
 
   const cellCount = state.columns * state.rows;
   for (let index = 0; index < cellCount; index += 1) {
@@ -115,35 +312,6 @@ function getOverlayContent() {
   return null;
 }
 
-function renderBoard() {
-  cells.forEach((cell, index) => {
-    const x = index % state.columns;
-    const y = Math.floor(index / state.columns);
-    const shadeClass = (x + y) % 2 === 0 ? "cell-light" : "cell-dark";
-    cell.className = `cell ${shadeClass}`;
-  });
-
-  if (state.food) {
-    const foodCell = cells[getCellIndex(state.food)];
-    if (foodCell) {
-      foodCell.classList.add("food");
-    }
-  }
-
-  state.snake.forEach((segment, index) => {
-    const snakeCell = cells[getCellIndex(segment)];
-    if (!snakeCell) {
-      return;
-    }
-
-    snakeCell.classList.add("snake");
-    if (index === 0) {
-      snakeCell.classList.add("snake-head");
-      snakeCell.classList.add(getDirectionClass(state.direction));
-    }
-  });
-}
-
 function render() {
   scoreElement.textContent = String(state.score);
   statusElement.textContent = getStatusMessage();
@@ -160,11 +328,10 @@ function render() {
   } else {
     overlayElement.classList.remove("is-visible");
   }
-
-  renderBoard();
 }
 
 function resetGame() {
+  transition = null;
   state = restartGame({
     columns: BOARD_COLUMNS,
     rows: BOARD_ROWS,
@@ -262,12 +429,29 @@ function handleTouchEnd(event) {
 }
 
 function tick() {
-  state = stepGame(state);
+  const now = performance.now();
+  const previousState = state;
+  const nextState = stepGame(state);
+  if (nextState !== previousState) {
+    const renderedSnake = getRenderedSnake(now).points;
+    const renderedFood = getRenderedFood(now);
+    transition = {
+      fromFood: renderedFood ? clonePoint(renderedFood) : null,
+      fromSnake: cloneSnake(renderedSnake),
+      startedAt: now,
+      duration: TICK_MS,
+      toDirection: nextState.direction,
+      toFood: nextState.food ? clonePoint(nextState.food) : null,
+      toSnake: cloneSnake(nextState.snake),
+    };
+  }
+  state = nextState;
   render();
 }
 
 buildBoard();
 render();
+window.requestAnimationFrame(renderScene);
 
 document.addEventListener("keydown", handleKeydown);
 

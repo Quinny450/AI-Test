@@ -119,6 +119,14 @@ button {
   touch-action: none;
 }
 
+.scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
 .cell {
   position: relative;
   background: var(--board-light);
@@ -128,107 +136,38 @@ button {
   background: var(--board-dark);
 }
 
-.cell.snake {
-  background: var(--snake);
-  border-radius: 30%;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+.snake-body {
+  fill: none;
+  stroke: var(--snake);
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.cell.food {
-  background: transparent;
+.snake-outline {
+  fill: none;
+  stroke: rgba(31, 60, 18, 0.18);
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.cell.food::before {
-  content: "";
-  position: absolute;
-  inset: 18%;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 35%, #ffb59a 0 18%, transparent 19%),
-    radial-gradient(circle at 50% 65%, #d34837 0 72%, #b53627 73% 100%);
+.snake-head {
+  fill: var(--snake-head);
 }
 
-.cell.food::after {
-  content: "";
-  position: absolute;
-  top: 12%;
-  left: 53%;
-  width: 18%;
-  height: 12%;
-  border-radius: 999px;
-  background: #5b7b29;
-  transform: rotate(-24deg);
+.snake-eye {
+  fill: var(--snake-detail);
 }
 
-.cell.snake-head {
-  background: var(--snake-head);
-  overflow: hidden;
+.food-body {
+  fill: #d34837;
 }
 
-.cell.snake-head::before,
-.cell.snake-head::after {
-  content: "";
-  position: absolute;
-  width: 12%;
-  height: 12%;
-  border-radius: 50%;
-  background: var(--snake-detail);
+.food-highlight {
+  fill: #ffb59a;
 }
 
-.cell.snake-head.dir-right::before,
-.cell.snake-head.dir-right::after {
-  top: 28%;
-  right: 22%;
-}
-
-.cell.snake-head.dir-right::before {
-  transform: translateY(-8px);
-}
-
-.cell.snake-head.dir-right::after {
-  transform: translateY(8px);
-}
-
-.cell.snake-head.dir-left::before,
-.cell.snake-head.dir-left::after {
-  top: 28%;
-  left: 22%;
-}
-
-.cell.snake-head.dir-left::before {
-  transform: translateY(-8px);
-}
-
-.cell.snake-head.dir-left::after {
-  transform: translateY(8px);
-}
-
-.cell.snake-head.dir-up::before,
-.cell.snake-head.dir-up::after {
-  top: 22%;
-  left: 30%;
-}
-
-.cell.snake-head.dir-up::before {
-  transform: translateX(-8px);
-}
-
-.cell.snake-head.dir-up::after {
-  transform: translateX(8px);
-}
-
-.cell.snake-head.dir-down::before,
-.cell.snake-head.dir-down::after {
-  bottom: 22%;
-  left: 30%;
-}
-
-.cell.snake-head.dir-down::before {
-  transform: translateX(-8px);
-}
-
-.cell.snake-head.dir-down::after {
-  transform: translateX(8px);
+.food-stem {
+  fill: #5b7b29;
 }
 
 .overlay {
