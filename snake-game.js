@@ -28,9 +28,9 @@ let state = createInitialState({
   rows: BOARD_ROWS,
 });
 
-const cells = [];
 let touchStartPoint = null;
 let transition = null;
+let sceneFrameHandle = 0;
 
 const snakeOutlineElement = document.createElementNS(SVG_NS, "path");
 const snakeBodyElement = document.createElementNS(SVG_NS, "path");
@@ -229,27 +229,30 @@ function renderScene(now = performance.now()) {
       `rotate(-24 ${formatUnit(foodCenter.x + 0.06)} ${formatUnit(foodCenter.y - 0.23)})`,
     );
   }
+}
 
-  window.requestAnimationFrame(renderScene);
+function runSceneFrame(now) {
+  renderScene(now);
+  if (transition !== null) {
+    sceneFrameHandle = window.requestAnimationFrame(runSceneFrame);
+    return;
+  }
+
+  sceneFrameHandle = 0;
+}
+
+function ensureSceneAnimation() {
+  if (sceneFrameHandle !== 0) {
+    return;
+  }
+
+  sceneFrameHandle = window.requestAnimationFrame(runSceneFrame);
 }
 
 function buildBoard() {
-  boardElement.innerHTML = "";
-  boardElement.style.gridTemplateColumns = `repeat(${state.columns}, minmax(0, 1fr))`;
   boardElement.style.aspectRatio = `${state.columns} / ${state.rows}`;
+  boardElement.style.backgroundSize = `${100 / state.columns}% ${100 / state.rows}%`;
   sceneElement.setAttribute("viewBox", `0 0 ${state.columns} ${state.rows}`);
-
-  const cellCount = state.columns * state.rows;
-  for (let index = 0; index < cellCount; index += 1) {
-    const cell = document.createElement("div");
-    const x = index % state.columns;
-    const y = Math.floor(index / state.columns);
-    const shadeClass = (x + y) % 2 === 0 ? "cell-light" : "cell-dark";
-    cell.className = `cell ${shadeClass}`;
-    cell.setAttribute("role", "presentation");
-    cells.push(cell);
-    boardElement.append(cell);
-  }
 }
 
 function getStatusMessage() {
@@ -302,7 +305,7 @@ function getOverlayContent() {
 
   if (!state.hasStarted) {
     return {
-      kicker: "Arcade Mode",
+      kicker: "Minimal Mode",
       title: "Play Snake",
       message: "Use the arrow keys, WASD, or swipe to start.",
       actionLabel: "Play",
@@ -328,6 +331,8 @@ function render() {
   } else {
     overlayElement.classList.remove("is-visible");
   }
+
+  renderScene();
 }
 
 function resetGame() {
@@ -432,26 +437,28 @@ function tick() {
   const now = performance.now();
   const previousState = state;
   const nextState = stepGame(state);
-  if (nextState !== previousState) {
-    const renderedSnake = getRenderedSnake(now).points;
-    const renderedFood = getRenderedFood(now);
-    transition = {
-      fromFood: renderedFood ? clonePoint(renderedFood) : null,
-      fromSnake: cloneSnake(renderedSnake),
-      startedAt: now,
-      duration: TICK_MS,
-      toDirection: nextState.direction,
-      toFood: nextState.food ? clonePoint(nextState.food) : null,
-      toSnake: cloneSnake(nextState.snake),
-    };
+  if (nextState === previousState) {
+    return;
   }
+
+  const renderedSnake = getRenderedSnake(now).points;
+  const renderedFood = getRenderedFood(now);
+  transition = {
+    fromFood: renderedFood ? clonePoint(renderedFood) : null,
+    fromSnake: cloneSnake(renderedSnake),
+    startedAt: now,
+    duration: TICK_MS,
+    toDirection: nextState.direction,
+    toFood: nextState.food ? clonePoint(nextState.food) : null,
+    toSnake: cloneSnake(nextState.snake),
+  };
+  ensureSceneAnimation();
   state = nextState;
   render();
 }
 
 buildBoard();
 render();
-window.requestAnimationFrame(renderScene);
 
 document.addEventListener("keydown", handleKeydown);
 
